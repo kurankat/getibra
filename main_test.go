@@ -27,9 +27,12 @@ var testLocation = LocalityData{
 	datum:        "GDA94",
 }
 
-func TestMain(t *testing.T) {
+func Test_Main(t *testing.T) {
+	for key, value := range testLocation {
+		fmt.Printf("Header: %s,\tValue: %s", key, value)
+	}
+
 	equals(t, true, true)
-	equals(t, true, false)
 }
 
 // Locality Name	Variants	State	Country	Lat/Long Method	Latitude 1	Longitude 1	Datum

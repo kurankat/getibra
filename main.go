@@ -12,7 +12,17 @@ var inputHeaders = []string{
 	"Longitude 1",
 	"Datum",
 }
-var outputHeaders []string
+var outputHeaders = []string{
+	"Locality Name",
+	"Variants",
+	"bioregion",
+	"State",
+	"Country",
+	"Lat/Long Method",
+	"Latitude 1",
+	"Longitude 1",
+	"Datum",
+}
 
 type LocalityData struct {
 	localityName string
