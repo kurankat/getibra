@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -40,13 +42,28 @@ type Response struct {
 
 var alaClient = &http.Client{}
 
-func main() {
+var importFlag = flag.String("i", "", "Name of file to import")
+
+func parseArgs() (importFile, exportfile string) {
+	flag.Parse()
 	timeStamp := time.Now().Format("20060102T150405")
-	importFile, err := os.Open("Tasmania_test.csv")
+	if len(*importFlag) == 0 {
+		fmt.Println("I don't know the name of the file to import. Try: getibra -i <filename.csv>")
+		os.Exit(1)
+	} else {
+		importFile = *importFlag
+		splitFile := strings.Split(importFile, ".")
+		exportfile = fmt.Sprint(splitFile[0], "-", timeStamp, splitFile[1])
+	}
+	return
+}
+
+func main() {
+	importName, exportName := parseArgs()
+	importFile, err := os.Open(importName)
 	dealWith(err)
 	defer importFile.Close()
 
-	exportName := fmt.Sprintf("ibraLocalities-%s.csv", timeStamp)
 	exportFile, err := os.OpenFile(exportName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	dealWith(err)
 	defer exportFile.Close()
