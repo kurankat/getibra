@@ -2,38 +2,26 @@ package main
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
-
-	"github.com/kurankat/csvdict"
+	"time"
 )
 
 var outputHeaders = []string{
-	"Locality_Name",
+	"Locality Name",
 	"Variants",
-	"bioregion",
 	"State",
 	"Country",
-	"Lat/Long_Method",
-	"Latitude_1",
-	"Longitude_1",
+	"Lat/Long Method",
+	"Latitude 1",
+	"Longitude 1",
 	"Datum",
-}
-
-type LocalityData struct {
-	localityName string
-	variants     string
-	country      string
-	state        string
-	bioregion    string
-	lat          string
-	long         string
-	llMethod     string
-	datum        string
+	"bioregion",
 }
 
 type Request struct {
@@ -53,70 +41,46 @@ type Response struct {
 var alaClient = &http.Client{}
 
 func main() {
+	timeStamp := time.Now().Format("20060102T150405")
 	importFile, err := os.Open("Tasmania_test.csv")
-	if err != nil {
-		panic(err)
-	}
+	dealWith(err)
 	defer importFile.Close()
 
-	exportFile, err := os.OpenFile("ibraLocalities.csv", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		panic(err)
-	}
+	exportName := fmt.Sprintf("ibraLocalities-%s.csv", timeStamp)
+	exportFile, err := os.OpenFile(exportName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	dealWith(err)
 	defer exportFile.Close()
 
-	localityReader, err := csvdict.NewDictReader(importFile)
-	if err != nil {
-		panic(err)
+	localityReader := csv.NewReader(importFile)
+	dealWith(err)
+	localityReader.Comma = ','
+
+	localityWriter := csv.NewWriter(exportFile)
+	localityWriter.Comma = ','
+	localityWriter.Write(outputHeaders)
+
+	// Read and discard header row
+	headerRow, err := localityReader.Read()
+	dealWith(err)
+
+	if len(headerRow) != len(outputHeaders)-1 {
+		panic("CSV file a sthe wrong number of fields")
 	}
 
-	localityWriter := csvdict.NewDictWriter(exportFile, outputHeaders)
-	localityWriter.WriteHeaders()
-
 	for {
-		// Read line into memory
 		record, err := localityReader.Read()
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			panic(err)
 		}
-
-		lat := record["Latitude_1"]
-		long := record["Longitude_1"]
-
-		record["bioregion"] = getBioregion(lat, long)
-
-		localityRecord := newLocality(record)
-		// for key, value := range record {
-		// 	fmt.Printf("\"%s\": \"%s\"\n", key, value)
-		// }
+		bioregion := getBioregion(record[5], record[6])
+		record = append(record, bioregion)
 
 		fmt.Println(record)
-		fmt.Println("Locality Name (map): ", record["Locality_Name"])
-		fmt.Println("Locality Name (struct): ", localityRecord.localityName)
-
-		// fmt.Println(outputHeaders)
-
 		localityWriter.Write(record)
 	}
 	localityWriter.Flush()
-}
-
-func newLocality(record map[string]string) *LocalityData {
-	locData := &LocalityData{
-		localityName: record["Locality_Name"],
-		variants:     record["Variants"],
-		country:      record["Country"],
-		state:        record["State"],
-		lat:          record["Latitude_1"],
-		long:         record["Longitude_1"],
-		llMethod:     record["Lat/Long_Method"],
-		datum:        record["Datum"],
-	}
-
-	locData.bioregion = getBioregion(locData.lat, locData.long)
-	return locData
 }
 
 func getBioregion(lat, long string) (bioregion string) {
@@ -141,4 +105,10 @@ func getJson(url string, target interface{}) error {
 
 	jsonReader := bytes.NewReader(jsonResp)
 	return json.NewDecoder(jsonReader).Decode(target)
+}
+
+func dealWith(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

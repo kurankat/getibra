@@ -8,14 +8,14 @@ import (
 	"testing"
 )
 
-var testLocation = LocalityData{
-	localityName: "Currie",
-	country:      "Australia",
-	state:        "State of Tasmania",
-	lat:          "-39.93125",
-	long:         "143.85099",
-	llMethod:     "Decimal degrees",
-	datum:        "GDA94",
+var testLocation = map[string]string{
+	"localityName": "Currie",
+	"country":      "Australia",
+	"state":        "State of Tasmania",
+	"lat":          "-39.93125",
+	"long":         "143.85099",
+	"llMethod":     "Decimal degrees",
+	"datum":        "GDA94",
 }
 
 // equals fails the test if exp is not equal to act.
@@ -28,5 +28,5 @@ func equals(tb testing.TB, exp, act interface{}) {
 }
 
 func TestGetBioregion(t *testing.T) {
-	equals(t, "King", getBioregion(testLocation.lat, testLocation.long))
+	equals(t, "King", getBioregion(testLocation["lat"], testLocation["long"]))
 }
