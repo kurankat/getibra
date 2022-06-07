@@ -1,32 +1,26 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
-	"strings"
+	"os"
+
+	"github.com/kurankat/csvdict"
 )
 
-var inputHeaders = []string{
-	"Locality Name",
-	"Variants",
-	"State",
-	"Country",
-	"Lat/Long Method",
-	"Latitude 1",
-	"Longitude 1",
-	"Datum",
-}
 var outputHeaders = []string{
-	"Locality Name",
+	"Locality_Name",
 	"Variants",
 	"bioregion",
 	"State",
 	"Country",
-	"Lat/Long Method",
-	"Latitude 1",
-	"Longitude 1",
+	"Lat/Long_Method",
+	"Latitude_1",
+	"Longitude_1",
 	"Datum",
 }
 
@@ -59,7 +53,79 @@ type Response struct {
 var alaClient = &http.Client{}
 
 func main() {
-	getBioregion("-39.93125", "143.85099")
+	importFile, err := os.Open("Tasmania_test.csv")
+	if err != nil {
+		panic(err)
+	}
+	defer importFile.Close()
+
+	exportFile, err := os.OpenFile("ibraLocalities.csv", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer exportFile.Close()
+
+	localityReader, err := csvdict.NewDictReader(importFile)
+	if err != nil {
+		panic(err)
+	}
+
+	localityWriter := csvdict.NewDictWriter(exportFile, outputHeaders)
+	localityWriter.WriteHeaders()
+
+	for {
+		// Read line into memory
+		record, err := localityReader.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			panic(err)
+		}
+
+		lat := record["Latitude_1"]
+		long := record["Longitude_1"]
+
+		record["bioregion"] = getBioregion(lat, long)
+
+		localityRecord := newLocality(record)
+		// for key, value := range record {
+		// 	fmt.Printf("\"%s\": \"%s\"\n", key, value)
+		// }
+
+		fmt.Println(record)
+		fmt.Println("Locality Name (map): ", record["Locality_Name"])
+		fmt.Println("Locality Name (struct): ", localityRecord.localityName)
+
+		// fmt.Println(outputHeaders)
+
+		localityWriter.Write(record)
+	}
+	localityWriter.Flush()
+}
+
+func newLocality(record map[string]string) *LocalityData {
+	locData := &LocalityData{
+		localityName: record["Locality_Name"],
+		variants:     record["Variants"],
+		country:      record["Country"],
+		state:        record["State"],
+		lat:          record["Latitude_1"],
+		long:         record["Longitude_1"],
+		llMethod:     record["Lat/Long_Method"],
+		datum:        record["Datum"],
+	}
+
+	locData.bioregion = getBioregion(locData.lat, locData.long)
+	return locData
+}
+
+func getBioregion(lat, long string) (bioregion string) {
+	region := &Response{}
+
+	requestURL := fmt.Sprintf("https://spatial.ala.org.au/ws/intersect/1048/%s/%s", lat, long)
+	_ = getJson(requestURL, region)
+
+	return region.Value
 }
 
 func getJson(url string, target interface{}) error {
@@ -69,20 +135,10 @@ func getJson(url string, target interface{}) error {
 	}
 	defer r.Body.Close()
 
-	jsonResp, _ := ioutil.ReadAll(r.Body)
-	stringResp := string(jsonResp)
-	trimmed1 := strings.ReplaceAll(stringResp, "[", "")
-	trimmed2 := strings.ReplaceAll(trimmed1, "]", "")
+	rawResp, _ := ioutil.ReadAll(r.Body)
+	jsonResp := bytes.ReplaceAll(bytes.ReplaceAll(rawResp, []byte("["), []byte("")),
+		[]byte("]"), []byte(""))
 
-	forDecoder := strings.NewReader(trimmed2)
-	return json.NewDecoder(forDecoder).Decode(target)
-}
-
-func getBioregion(lat, long string) (bioregion string) {
-	region := &Response{}
-
-	requestURL := fmt.Sprintf("https://spatial.ala.org.au/ws/intersect/1048/%s/%s", lat, long)
-	getJson(requestURL, region)
-
-	return region.Value
+	jsonReader := bytes.NewReader(jsonResp)
+	return json.NewDecoder(jsonReader).Decode(target)
 }
